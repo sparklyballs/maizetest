@@ -31,7 +31,7 @@ for p in ${plots_dir//:/ }; do
     maize plots add -d ${p}
 done
 
-sed -i 's/localhost/127.0.0.1/g' ~/.maizenetwork/mainnet/config/config.yaml
+sed -i 's/localhost/127.0.0.1/g' ~/.maize/mainnet/config/config.yaml
 
 if [[ ${farmer} == 'true' ]]; then
   maize start farmer-only
