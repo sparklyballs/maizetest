@@ -59,11 +59,10 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 # build package
 RUN \
 	if [ -z ${RELEASE+x} ]; then \
-	RELEASE=$(curl -u "${SECRETUSER}:${SECRETPASS}" -sX GET "https://api.github.com/repos/Maize-Network/maize-blockchain/commits/main" \
-	| jq -r ".sha"); \
-	RELEASE="${RELEASE:0:7}"; \
+	RELEASE=$(curl -u "${SECRETUSER}:${SECRETPASS}" -sX GET "https://api.github.com/repos/Maize-Network/maize-blockchain/releases/latest" \
+	| jq -r ".tag_name"); \
 	fi \
-	&& git clone https://github.com/Maize-Network/maize-blockchain.git \
+	&& git clone -b "${RELEASE}" https://github.com/Maize-Network/maize-blockchain.git \
 		/maize-blockchain \		
 	&& git checkout "${RELEASE}" \
 	&& git submodule update --init mozilla-ca \
