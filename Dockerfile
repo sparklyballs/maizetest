@@ -1,43 +1,67 @@
-ARG UBUNTU_VER="focal"
-FROM ubuntu:${UBUNTU_VER}
+FROM python:3.9 AS maize_build
+
+# build arguments
+ARG DEBIAN_FRONTEND=noninteractive 
+ARG RELEASE
+
+# install build dependencies
+RUN \
+	apt-get update \
+	&& apt-get install \
+	--no-install-recommends -y \
+		ca-certificates \
+		curl \
+		jq \
+		lsb-release \
+		sudo
+
+# set workdir
+WORKDIR /maize-blockchain
+
+# fetch source
+RUN \
+	if [ -z ${RELEASE+x} ]; then \
+	RELEASE=$(curl -u "${SECRETUSER}:${SECRETPASS}" -sX GET "https://api.github.com/repos/Maize-Network/maize-blockchain/releases/latest" \
+	| jq -r ".tag_name"); \
+	fi \
+	&& git clone --branch ${RELEASE} --recurse-submodules=mozilla-ca https://github.com/Maize-Network/maize-blockchain.git . \
+	&& /bin/sh ./install.sh
+
+FROM python:3.9-slim
 
 # build arguments
 ARG DEBIAN_FRONTEND=noninteractive
-ARG RELEASE
 
 # environment variables
 ENV \
-	farmer_address="null" \
+        MAIZE_ROOT=/root/.maize/mainnet \
+        farmer_address= \
+        farmer_port= \
+        keys="generate" \
+        log_level="INFO" \
+        log_to_file="true" \
+        outbound_peer_count="20" \
+        peer_count="20" \
+        plots_dir="/plots" \
+        service="farmer" \
+        testnet="false" \
+        TZ="UTC" \
+        upnp="true"
+
+# legacy options
+ENV \
 	farmer="false" \
-	farmer_port="null" \
-	full_node_port="null" \
-	harvester="false" \
-	keys="generate" \
-	log_level="INFO" \
-	outbound_peer_count="20" \
-	peer_count="20" \
-	plots_dir="/plots" \
-	testnet="false" \
-	TZ="UTC"
+	harvester="false"
+
+# set workdir
+WORKDIR /maize-blockchain
 
 # install dependencies
 RUN \
 	apt-get update \
-	&& apt-get install -y \
-	--no-install-recommends \
-		acl \
-		bc \
-		ca-certificates \
-		curl \
-		git \
-		jq \
-		lsb-release \
-		openssl \
-		python3 \
-		sudo \
-		tar \
+	&& apt-get install \
+	--no-install-recommends -y \
 		tzdata \
-		unzip \
 	\
 # set timezone
 	\
@@ -52,41 +76,16 @@ RUN \
 		/var/lib/apt/lists/* \
 		/var/tmp/*
 
-# set workdir for build stage
-WORKDIR /maize-blockchain
-
-# set shell
-SHELL ["/bin/bash", "-o", "pipefail", "-c"]
-
-# build package
-RUN \
-	if [ -z ${RELEASE+x} ]; then \
-	RELEASE=$(curl -u "${SECRETUSER}:${SECRETPASS}" -sX GET "https://api.github.com/repos/Maize-Network/maize-blockchain/releases/latest" \
-	| jq -r ".tag_name"); \
-	fi \
-	&& git clone -b "${RELEASE}" https://github.com/Maize-Network/maize-blockchain.git \
-		/maize-blockchain \		
-	&& git checkout "${RELEASE}" \
-	&& git submodule update --init mozilla-ca \
-	&& sh install.sh \
-	\
-# cleanup
-	\
-	&& rm -rf \
-		/root/.cache \
-		/tmp/* \
-		/var/lib/apt/lists/* \
-		/var/tmp/*
-
 # set additional runtime environment variables
 ENV \
-	PATH=/maize-blockchain/venv/bin:$PATH \
-	CONFIG_ROOT=/root/.maize/mainnet
+	PATH=/maize-blockchain/venv/bin:$PATH
+
+# copy build files
+COPY --from=maize_build /maize-blockchain /maize-blockchain
 
 # copy local files
 COPY docker-*.sh /usr/local/bin/
 RUN chmod +x /usr/local/bin/docker-*.sh
 
-# entrypoint
 ENTRYPOINT ["docker-entrypoint.sh"]
 CMD ["docker-start.sh"]
